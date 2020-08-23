@@ -1,27 +1,20 @@
-# SOURCE=$(wildcard *.f*)
-# FLAGS=-Wall -Wextra -Wconversion -pedantic
+.PHONEY=build run clean
 
-# a.out: $(SOURCE)
-# 	gfortran $(FLAGS) -g $< -o a.out
-
-# clean:
-# 	rm -rf a.out
-
-# SOURCE=$(wildcard *.f*)
-
-.PHONEY=run clean
-
-SOURCE=rollout.f
+SOURCE=$(wildcard *.f90)
 FLAGS=-Wall -Wextra -Wconversion -pedantic
+
+SOURCE=rollout.f90
+FLAGS=-Wall -Wextra -Wconversion -pedantic
+EXEC=python
+NP_MODULE=numpy
 MODULE_NAME=fast_rollout
+F2PY=f2py
 
-FORTRAN_MODULE=fast_rollout.cpython-37m-x86_64-linux-gnu.so
+build:
+	$(EXEC) -m $(NP_MODULE).$(F2PY) -c $(SOURCE) -m $(MODULE_NAME)
 
-run: $(FORTRAN_MODULE)
+run: build
 	@./execute.py
 
-$(FORTRAN_MODULE): rollout.f
-	python -m numpy.f2py -c rollout.f -m $(MODULE_NAME)
-
 clean:
-	rm -rf a.out
+	rm -rf *.so
