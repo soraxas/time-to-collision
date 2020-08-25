@@ -151,11 +151,14 @@ r = forward_prop_traj.prop_traj(
     start_point=start_point,
     end_point=end_point,
     start_con=cur_con,
-    N=200, 
+    N=500, 
     LinBounds=LinBounds,
     obs_np=obs_np,
+    ftol=0.1
  )
 print((time.time()-start) * 1000)
+print(r[0][0:2], r[0][-2:])
+print(r[1][0:2], r[1][-2:])
 # print('=')
 # print(r)
 # print(a(start_point, end_point, cur_control))
