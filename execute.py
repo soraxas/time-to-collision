@@ -129,10 +129,12 @@ def a(start_point, end_point, cur_con):
         if(np.linalg.norm(cur_point[:2]-end_point)<0.1):
             break
     print(i)
+    return np.array(pos_list), np.array(vel_list)
 
 start_point=np.array([38.,38.,-2.])
 end_point=np.array([20.,20.])
 cur_control=np.array([1.5, 0.])
+cur_con=cur_control
 
 # start_point=np.random.uniform(21,37,3)
 # start_point[-1] = -2.
@@ -142,4 +144,20 @@ print(start_point, end_point)
 start =time.time()
 a(start_point, end_point, cur_control)
 print(time.time() - start)
+
+import forward_prop_traj
+start =time.time()
+r = forward_prop_traj.prop_traj(
+    start_point=start_point,
+    end_point=end_point,
+    start_con=cur_con,
+    N=200, 
+    LinBounds=LinBounds,
+    obs_np=obs_np,
+ )
+print((time.time()-start) * 1000)
+# print('=')
+# print(r)
+# print(a(start_point, end_point, cur_control))
+# print(np.asarray(r))
 
