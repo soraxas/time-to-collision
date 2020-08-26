@@ -1,4 +1,12 @@
-
+#cython: boundscheck=False
+#cython: nonecheck=False
+#cython: wraparound=False
+#cython: infertypes=True
+#cython: initializedcheck=False
+#cython: cdivision=True
+#distutils: language = c++
+#distutils: libraries = ['stdc++']
+#distutils: extra_compile_args = -Wno-unused-function -Wno-unneeded-internal-declaration
 
 import numpy as np
 cimport numpy as np
@@ -9,68 +17,37 @@ import cython
 
 # from scipy.optimize.slsqp import _minimize_slsqp
 
-
-import numpy as np
 from scipy.optimize._slsqp import slsqp
 from numpy import (zeros, array, linalg, append, asfarray, concatenate, finfo,
                    vstack, exp, inf, isfinite, atleast_1d)
 from scipy.optimize.optimize import wrap_function, OptimizeResult, _check_unknown_options
 
 
+DTYPE = np.double
+ctypedef np.double_t DTYPE_t
+F_DTYPE = np.float
+ctypedef np.float_t F_DTYPE_t
+I_DTYPE = np.int
+ctypedef np.int_t I_DTYPE_t
 _epsilon = np.sqrt(finfo(float).eps)
-
-
-cdef new_bounds_to_old(lb, ub, int n):
-    """Convert the new bounds representation to the old one.
-
-    The new representation is a tuple (lb, ub) and the old one is a list
-    containing n tuples, i-th containing lower and upper bound on a i-th
-    variable.
-    """
-    lb = np.asarray(lb)
-    ub = np.asarray(ub)
-    if lb.ndim == 0:
-        lb = np.resize(lb, n)
-    if ub.ndim == 0:
-        ub = np.resize(ub, n)
-
-    lb = [x if x > -np.inf else None for x in lb]
-    ub = [x if x < np.inf else None for x in ub]
-
-    return list(zip(lb, ub))
-
-
-cdef approx_jacobian(x, func, epsilon):
-    """
-    Approximate the Jacobian matrix of a callable function.
-    """
-    x0 = asfarray(x)
-    f0 = atleast_1d(func(*((x0,))))
-    jac = zeros([len(x0), len(f0)])
-    dx = zeros(len(x0))
-    for i in range(len(x0)):
-        dx[i] = epsilon
-        jac[i] = (func(*((x0+dx,))) - f0)/epsilon
-        dx[i] = 0.0
-    return jac.transpose()
 
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cpdef prop_traj(double [:] start_point, double [:] end_point, double [:] start_con, int N,
-       object LinBounds, double [:, :] obs_np, float ts=.1, float targ_tol=.1,
-       int maxiter=100, ftol=1.0E-6, double epsilon=_epsilon, object jac_func=None):
+cpdef tuple prop_traj(DTYPE_t[:] start_point, DTYPE_t[:] end_point, DTYPE_t[:] start_con, Py_ssize_t N,
+       object LinBounds, DTYPE_t[:, :] obs_np, float ts=.1, float targ_tol=.1,
+       Py_ssize_t maxiter=100, ftol=1.0E-6, DTYPE_t epsilon=_epsilon, object jac_func=None):
     
     ##################################################################################
     # cdef double tmp = 0.
-    cdef double [:] cur_point = np.empty(start_point.shape[0], dtype=np.double)
-    cdef double [:] cur_con = np.empty(start_con.shape[0], dtype=np.double)
-    cdef double [:] x = np.empty(start_con.shape[0], dtype=np.double)
+    cdef DTYPE_t[:] cur_point = np.empty(start_point.shape[0], dtype=DTYPE)
+    cdef DTYPE_t[:] cur_con = np.empty(start_con.shape[0], dtype=DTYPE)
+    cdef DTYPE_t[:] x = np.empty(start_con.shape[0], dtype=DTYPE)
     
-    cdef double [:, :] J = np.zeros((3, 2), dtype=np.double)
+    cdef DTYPE_t[:, :] J = np.zeros((3, 2), dtype=DTYPE)
     
-    cdef double [:, :] poses = np.zeros((N, start_point.shape[0]), dtype=np.double)
-    cdef double [:, :] veles = np.zeros((N, start_con.shape[0]), dtype=np.double)
+    cdef DTYPE_t[:, :] poses = np.zeros((N, start_point.shape[0]), dtype=DTYPE)
+    cdef DTYPE_t[:, :] veles = np.zeros((N, start_con.shape[0]), dtype=DTYPE)
 
     # init
     cur_point[:] = start_point
@@ -78,7 +55,7 @@ cpdef prop_traj(double [:] start_point, double [:] end_point, double [:] start_c
     
     cdef object res
     
-    cdef Py_ssize_t _x, _y
+    cdef Py_ssize_t _x, _y, i, __i
     cdef Py_ssize_t x_max = J.shape[0]
     cdef Py_ssize_t y_max = J.shape[1]
     
@@ -154,50 +131,51 @@ cpdef prop_traj(double [:] start_point, double [:] end_point, double [:] start_c
     ###############################################################################
     # Init varaibles for internal states of slsqp
     # Initialize the iteration counter and the mode value
-    cdef np.ndarray mode = array(1, int)
-    cdef np.ndarray acc = array(ftol, float)
-    cdef np.ndarray majiter = array(maxiter, int)
+    cdef np.ndarray[I_DTYPE_t, ndim=0] mode = array(1, I_DTYPE)
+    cdef np.ndarray[F_DTYPE_t, ndim=0] acc = array(ftol, F_DTYPE)
+    cdef np.ndarray[I_DTYPE_t, ndim=0] majiter = array(maxiter, I_DTYPE)
     cdef int majiter_prev = 0
     # Initialize internal SLSQP state variables
-    cdef np.ndarray alpha = array(0, float)
-    cdef np.ndarray f0 = array(0, float)
-    cdef np.ndarray gs = array(0, float)
-    cdef np.ndarray h1 = array(0, float)
-    cdef np.ndarray h2 = array(0, float)
-    cdef np.ndarray h3 = array(0, float)
-    cdef np.ndarray h4 = array(0, float)
-    cdef np.ndarray t = array(0, float)
-    cdef np.ndarray t0 = array(0, float)
-    cdef np.ndarray tol = array(0, float)
-    cdef np.ndarray iexact = array(0, int)
-    cdef np.ndarray incons = array(0, int)
-    cdef np.ndarray ireset = array(0, int)
-    cdef np.ndarray itermx = array(0, int)
-    cdef np.ndarray line = array(0, int)
-    cdef np.ndarray n1 = array(0, int)
-    cdef np.ndarray n2 = array(0, int)
-    cdef np.ndarray n3 = array(0, int)
+    cdef np.ndarray[F_DTYPE_t, ndim=0] alpha = array(0, F_DTYPE)
+    cdef np.ndarray[F_DTYPE_t, ndim=1] f0 = array([0], F_DTYPE)
+    cdef np.ndarray[F_DTYPE_t, ndim=0] gs = array(0, F_DTYPE)
+    cdef np.ndarray[F_DTYPE_t, ndim=0] h1 = array(0, F_DTYPE)
+    cdef np.ndarray[F_DTYPE_t, ndim=0] h2 = array(0, F_DTYPE)
+    cdef np.ndarray[F_DTYPE_t, ndim=0] h3 = array(0, F_DTYPE)
+    cdef np.ndarray[F_DTYPE_t, ndim=0] h4 = array(0, F_DTYPE)
+    cdef np.ndarray[F_DTYPE_t, ndim=0] t = array(0, F_DTYPE)
+    cdef np.ndarray[F_DTYPE_t, ndim=0] t0 = array(0, F_DTYPE)
+    cdef np.ndarray[F_DTYPE_t, ndim=0] tol = array(0, F_DTYPE)
+    cdef np.ndarray[I_DTYPE_t, ndim=0] iexact = array(0, I_DTYPE)
+    cdef np.ndarray[I_DTYPE_t, ndim=0] incons = array(0, I_DTYPE)
+    cdef np.ndarray[I_DTYPE_t, ndim=0] ireset = array(0, I_DTYPE)
+    cdef np.ndarray[I_DTYPE_t, ndim=0] itermx = array(0, I_DTYPE)
+    cdef np.ndarray[I_DTYPE_t, ndim=0] line = array(0, I_DTYPE)
+    cdef np.ndarray[I_DTYPE_t, ndim=0] n1 = array(0, I_DTYPE)
+    cdef np.ndarray[I_DTYPE_t, ndim=0] n2 = array(0, I_DTYPE)
+    cdef np.ndarray[I_DTYPE_t, ndim=0] n3 = array(0, I_DTYPE)
     # Compute the constraints
-    cdef np.ndarray c_eq = zeros(0)
-    cdef np.ndarray c_ieq = zeros(0)
+    cdef np.ndarray[F_DTYPE_t, ndim=1] c_eq = zeros(0)
+    cdef np.ndarray[F_DTYPE_t, ndim=1] c_ieq = zeros(0)
     # Now combine c_eq and c_ieq into a single matrix
-    cdef np.ndarray c = concatenate((c_eq, c_ieq))
+    cdef np.ndarray[F_DTYPE_t, ndim=1] c = concatenate((c_eq, c_ieq))
     # Compute the normals of the constraints
-    cdef np.ndarray a_eq = zeros((meq, n))
-    cdef np.ndarray a_ieq = zeros((mieq, n))
+    cdef np.ndarray[F_DTYPE_t, ndim=2] a_eq = zeros((meq, n))
+    cdef np.ndarray[F_DTYPE_t, ndim=2] a_ieq = zeros((mieq, n))
     # Now combine a_eq and a_ieq into a single a matrix
+    cdef np.ndarray[F_DTYPE_t, ndim=2] a
     if m == 0:  # no constraints
         a = zeros((la, n))
     else:
         a = vstack((a_eq, a_ieq))
     a = concatenate((a, zeros([la, 1])), 1)
     ###############################################################################
-    cdef int _len_x0 = len(x0)
-    cdef np.ndarray dx
-    cdef double [:] jac
+    cdef Py_ssize_t _len_x0 = len(x0)
+    cdef np.ndarray[DTYPE_t, ndim=1] dx
+    cdef DTYPE_t[:] jac
     # cdef np.ndarray jac
-    cdef np.ndarray g
-    cdef double fx
+    # cdef np.ndarray g
+    cdef DTYPE_t fx
 
     for i in range(N):
 #         res = minimize(fast_rollout.rollout,
@@ -333,3 +311,37 @@ cpdef prop_traj(double [:] start_point, double [:] end_point, double [:] start_c
     # print(i)
     return np.asarray(poses)[:i], np.asarray(veles)[:i]
     
+
+cdef list new_bounds_to_old(lb, ub, int n):
+    """Convert the new bounds representation to the old one.
+
+    The new representation is a tuple (lb, ub) and the old one is a list
+    containing n tuples, i-th containing lower and upper bound on a i-th
+    variable.
+    """
+    lb = np.asarray(lb)
+    ub = np.asarray(ub)
+    if lb.ndim == 0:
+        lb = np.resize(lb, n)
+    if ub.ndim == 0:
+        ub = np.resize(ub, n)
+
+    lb = [x if x > -np.inf else None for x in lb]
+    ub = [x if x < np.inf else None for x in ub]
+
+    return list(zip(lb, ub))
+
+
+cdef approx_jacobian(x, func, epsilon):
+    """
+    Approximate the Jacobian matrix of a callable function.
+    """
+    x0 = asfarray(x)
+    f0 = atleast_1d(func(*((x0,))))
+    jac = zeros([len(x0), len(f0)])
+    dx = zeros(len(x0))
+    for i in range(len(x0)):
+        dx[i] = epsilon
+        jac[i] = (func(*((x0+dx,))) - f0)/epsilon
+        dx[i] = 0.0
+    return jac.transpose()

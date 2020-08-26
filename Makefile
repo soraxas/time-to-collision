@@ -1,23 +1,30 @@
-.PHONEY=build run clean
+.PHONY: all build run clean
 
-SOURCE=$(wildcard *.f90)
+PY_EXEC=python
 FLAGS=-Wall -Wextra -Wconversion -pedantic
+EXT_SUFFIX=$(shell python-config --extension-suffix)
 
-SOURCE=rollout.f90
 FLAGS=-Wall -Wextra -Wconversion -pedantic
-EXEC=python
 NP_MODULE=numpy
-MODULE_NAME=fast_rollout
+ROLLOUT_MODULE_NAME=fast_rollout
+F_PROP_TRAJ_MODULE_NAME=forward_prop_traj
 F2PY=f2py
+SRC_ROLLOUT=rollout.f90
+SRC_F_PROP_J=$(F_PROP_TRAJ_MODULE_NAME).pyx
 
-# build:
-# 	$(EXEC) -m $(NP_MODULE).$(F2PY) -c $(SOURCE) -m $(MODULE_NAME)
+TARGET_ROLLOUT=$(ROLLOUT_MODULE_NAME)$(EXT_SUFFIX)
+TARGET_FORWARD_PROP_TRAJ=$(F_PROP_TRAJ_MODULE_NAME)$(EXT_SUFFIX)
 
-run: fast_rollout.cpython-37m-x86_64-linux-gnu.so
+all: $(TARGET_ROLLOUT) $(TARGET_FORWARD_PROP_TRAJ)
+
+$(TARGET_ROLLOUT):
+	$(PY_EXEC) -m $(NP_MODULE).$(F2PY) -c $(SRC_ROLLOUT) -m $(ROLLOUT_MODULE_NAME)
+
+$(TARGET_FORWARD_PROP_TRAJ): $(SRC_F_PROP_J)
+	$(PY_EXEC) setup.py build_ext --inplace
+
+run: all
 	@./execute.py
 
-fast_rollout.cpython-37m-x86_64-linux-gnu.so: $(SOURCE)
-	$(EXEC) -m $(NP_MODULE).$(F2PY) -c $(SOURCE) -m $(MODULE_NAME)
-
 clean:
-	rm -rf *.so
+	rm -f *.so
