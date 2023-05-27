@@ -20,14 +20,16 @@ import cython
 from scipy.optimize._slsqp import slsqp
 from numpy import (zeros, array, linalg, append, asfarray, concatenate, finfo,
                    vstack, exp, inf, isfinite, atleast_1d)
-from scipy.optimize.optimize import wrap_function, OptimizeResult, _check_unknown_options
+# from scipy.optimize.optimize import OptimizeResult, _check_unknown_options
 
 
 DTYPE = np.double
 ctypedef np.double_t DTYPE_t
-F_DTYPE = np.float
+# F_DTYPE = np.float
+F_DTYPE = float
 ctypedef np.float_t F_DTYPE_t
-I_DTYPE = np.int
+# I_DTYPE = np.int
+I_DTYPE = int
 ctypedef np.int_t I_DTYPE_t
 _epsilon = np.sqrt(finfo(float).eps)
 

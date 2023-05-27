@@ -6,11 +6,11 @@ import numpy as np
 from scipy.optimize import minimize, Bounds, LinearConstraint, NonlinearConstraint
 import matplotlib.pyplot as pl
 import copy
-from sklearn.metrics.pairwise import euclidean_distances
+# from sklearn.metrics.pairwise import euclidean_distances
 
 
 def J_vehicle(x_c):
-    result = np.zeros((3, 2), dtype=np.float)
+    result = np.zeros((3, 2), dtype=float)
     result[0, 0] = np.cos(x_c[2])
     result[1, 0] = np.sin(x_c[2])
     result[2, 1] = 1.

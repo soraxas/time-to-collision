@@ -1,5 +1,6 @@
 .PHONY: all build run clean
 
+current_dir := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 PY_EXEC=python
 FLAGS=-Wall -Wextra -Wconversion -pedantic
 EXT_SUFFIX=$(shell python-config --extension-suffix)
@@ -24,7 +25,7 @@ $(TARGET_FORWARD_PROP_TRAJ): $(SRC_F_PROP_J)
 	$(PY_EXEC) setup.py build_ext --inplace
 
 run: all
-	@./execute.py
+	$(PY_EXEC) $(current_dir)/execute.py
 
 clean:
 	rm -f *.so
